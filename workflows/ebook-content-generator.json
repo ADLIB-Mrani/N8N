@@ -1,0 +1,389 @@
+{
+  "name": "E-Book Content Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-ebook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "generate-ebook-webhook"
+    },
+    {
+      "parameters": {
+        "content": "=Topic: {{ $json.topic }}\nWord Count: {{ $json.wordCount }}\nNiche: {{ $json.niche }}\nTone: {{ $json.tone || 'professional' }}",
+        "options": {}
+      },
+      "id": "extract-parameters",
+      "name": "Extract Parameters",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "model": "gpt-4",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an expert e-book author and content creator. Your task is to create a comprehensive outline for an e-book that will be valuable to readers and marketable."
+            },
+            {
+              "role": "user",
+              "content": "=Create a detailed e-book outline for the topic: {{ $json.topic }}. The e-book should be approximately {{ $json.wordCount }} words, target niche: {{ $json.niche }}, and use a {{ $json.tone }} tone. Include:\n\n1. A compelling title\n2. 8-12 chapter titles\n3. 3-5 key points for each chapter\n4. Target audience description\n5. Unique selling points\n\nFormat the response as structured JSON."
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 2000
+        }
+      },
+      "id": "generate-outline",
+      "name": "Generate Outline (ChatGPT)",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "1",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json.choices[0].message.content;\nlet outline;\n\ntry {\n  // Try to parse as JSON\n  const jsonMatch = response.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    outline = JSON.parse(jsonMatch[0]);\n  } else {\n    // Fallback: create structure from text\n    outline = {\n      title: 'Generated E-Book',\n      chapters: [],\n      targetAudience: 'General readers',\n      sellingPoints: []\n    };\n  }\n} catch (e) {\n  // Create default structure\n  outline = {\n    title: 'Generated E-Book',\n    chapters: [],\n    targetAudience: 'General readers',\n    sellingPoints: []\n  };\n}\n\nreturn {\n  json: {\n    outline: outline,\n    outlineText: response,\n    topic: $input.first().json.topic,\n    wordCount: $input.first().json.wordCount,\n    niche: $input.first().json.niche,\n    tone: $input.first().json.tone || 'professional'\n  }\n};"
+      },
+      "id": "parse-outline",
+      "name": "Parse Outline",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "mode": "forEach",
+        "batchSize": 1
+      },
+      "id": "split-chapters",
+      "name": "Split Into Chapters",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "model": "gpt-4",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an expert e-book author. Write engaging, informative, and well-structured chapter content that provides real value to readers."
+            },
+            {
+              "role": "user",
+              "content": "=Write a complete chapter for an e-book with the following specifications:\n\nE-Book Title: {{ $json.outline.title }}\nChapter Number: {{ $json.$index + 1 }}\nChapter Title: {{ $json.outline.chapters[$json.$index].title }}\nKey Points to Cover: {{ $json.outline.chapters[$json.$index].keyPoints.join(', ') }}\nTarget Word Count: {{ Math.floor($json.wordCount / $json.outline.chapters.length) }} words\nTone: {{ $json.tone }}\nNiche: {{ $json.niche }}\n\nWrite the complete chapter content in markdown format with:\n- Clear section headings\n- Engaging introduction\n- Detailed explanations with examples\n- Actionable takeaways\n- Smooth conclusion that transitions to the next chapter"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 3000
+        }
+      },
+      "id": "generate-chapter",
+      "name": "Generate Chapter Content",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1250, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "1",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const chapterContent = $input.first().json.choices[0].message.content;\nconst chapterNumber = $input.first().json.$index + 1;\nconst chapterTitle = $input.first().json.outline.chapters[$input.first().json.$index].title;\n\nreturn {\n  json: {\n    chapterNumber: chapterNumber,\n    chapterTitle: chapterTitle,\n    content: chapterContent,\n    outline: $input.first().json.outline,\n    topic: $input.first().json.topic,\n    wordCount: $input.first().json.wordCount,\n    niche: $input.first().json.niche,\n    tone: $input.first().json.tone\n  }\n};"
+      },
+      "id": "format-chapter",
+      "name": "Format Chapter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {},
+      "id": "aggregate-chapters",
+      "name": "Aggregate All Chapters",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\n// Sort chapters by chapter number\nconst sortedChapters = items.sort((a, b) => \n  a.json.chapterNumber - b.json.chapterNumber\n);\n\n// Get metadata from first item\nconst metadata = sortedChapters[0].json;\n\n// Combine all chapters\nlet fullContent = `# ${metadata.outline.title}\\n\\n`;\nfullContent += `## About This E-Book\\n\\n`;\nfullContent += `**Topic:** ${metadata.topic}\\n`;\nfullContent += `**Niche:** ${metadata.niche}\\n`;\nfullContent += `**Target Audience:** ${metadata.outline.targetAudience}\\n\\n`;\nfullContent += `---\\n\\n`;\n\n// Add table of contents\nfullContent += `## Table of Contents\\n\\n`;\nsortedChapters.forEach(chapter => {\n  fullContent += `${chapter.json.chapterNumber}. ${chapter.json.chapterTitle}\\n`;\n});\nfullContent += `\\n---\\n\\n`;\n\n// Add all chapters\nsortedChapters.forEach(chapter => {\n  fullContent += `\\n\\n# Chapter ${chapter.json.chapterNumber}: ${chapter.json.chapterTitle}\\n\\n`;\n  fullContent += chapter.json.content;\n  fullContent += `\\n\\n---\\n\\n`;\n});\n\n// Add conclusion\nfullContent += `\\n\\n## Conclusion\\n\\n`;\nfullContent += `Thank you for reading \"${metadata.outline.title}\". We hope this e-book has provided valuable insights on ${metadata.topic}.\\n\\n`;\n\nconst timestamp = new Date().toISOString().split('T')[0];\nconst filename = metadata.outline.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');\n\nreturn {\n  json: {\n    title: metadata.outline.title,\n    content: fullContent,\n    topic: metadata.topic,\n    niche: metadata.niche,\n    tone: metadata.tone,\n    chapterCount: sortedChapters.length,\n    wordCount: fullContent.split(/\\s+/).length,\n    filename: `${filename}-${timestamp}.md`,\n    generatedAt: new Date().toISOString(),\n    outline: metadata.outline\n  }\n};"
+      },
+      "id": "combine-content",
+      "name": "Combine Full E-Book",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1850, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "fileContent": "={{ $json.content }}",
+        "fileName": "={{ $json.filename }}",
+        "options": {}
+      },
+      "id": "save-markdown",
+      "name": "Save as Markdown",
+      "type": "n8n-nodes-base.writeFile",
+      "typeVersion": 1,
+      "position": [2050, 200]
+    },
+    {
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "model": "gpt-4",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an SEO and marketing expert for e-books."
+            },
+            {
+              "role": "user",
+              "content": "=Create marketing copy for this e-book:\n\nTitle: {{ $json.title }}\nTopic: {{ $json.topic }}\nNiche: {{ $json.niche }}\n\nProvide:\n1. A compelling book description (150-200 words)\n2. 10 relevant keywords for SEO\n3. 5 potential categories for Amazon KDP\n4. A tagline/subtitle\n5. 3 bullet points highlighting key benefits\n\nFormat as JSON."
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 1000
+        }
+      },
+      "id": "generate-marketing",
+      "name": "Generate Marketing Copy",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [2050, 400],
+      "credentials": {
+        "openAiApi": {
+          "id": "1",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ebookData = $input.first().json;\nconst marketingResponse = $input.last().json.choices[0].message.content;\n\nlet marketing = {};\ntry {\n  const jsonMatch = marketingResponse.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    marketing = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  marketing = {\n    description: 'A comprehensive guide.',\n    keywords: [],\n    categories: [],\n    tagline: ebookData.title\n  };\n}\n\nreturn {\n  json: {\n    ebook: ebookData,\n    marketing: marketing,\n    status: 'completed',\n    message: `E-book \"${ebookData.title}\" generated successfully with ${ebookData.wordCount} words in ${ebookData.chapterCount} chapters.`\n  }\n};"
+      },
+      "id": "final-output",
+      "name": "Prepare Final Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2250, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "webhook-response",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2450, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Parameters": {
+      "main": [
+        [
+          {
+            "node": "Generate Outline (ChatGPT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Outline (ChatGPT)": {
+      "main": [
+        [
+          {
+            "node": "Parse Outline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Outline": {
+      "main": [
+        [
+          {
+            "node": "Split Into Chapters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Into Chapters": {
+      "main": [
+        [
+          {
+            "node": "Generate Chapter Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Chapter Content": {
+      "main": [
+        [
+          {
+            "node": "Format Chapter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Chapter": {
+      "main": [
+        [
+          {
+            "node": "Aggregate All Chapters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate All Chapters": {
+      "main": [
+        [
+          {
+            "node": "Combine Full E-Book",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Full E-Book": {
+      "main": [
+        [
+          {
+            "node": "Save as Markdown",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate Marketing Copy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save as Markdown": {
+      "main": [
+        [
+          {
+            "node": "Prepare Final Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Marketing Copy": {
+      "main": [
+        [
+          {
+            "node": "Prepare Final Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Final Output": {
+      "main": [
+        [
+          {
+            "node": "Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "id": "ebook-content-generator",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "n8n-ebook-automation"
+  },
+  "tags": [
+    {
+      "id": "ebook",
+      "name": "E-Book"
+    },
+    {
+      "id": "content",
+      "name": "Content Generation"
+    },
+    {
+      "id": "ai",
+      "name": "AI"
+    }
+  ]
+}

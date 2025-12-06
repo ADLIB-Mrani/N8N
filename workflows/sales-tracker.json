@@ -1,0 +1,354 @@
+{
+  "name": "E-Book Sales & Analytics Tracker",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Daily Schedule (9 AM)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Initialize tracking for today\nconst today = new Date();\nconst yesterday = new Date(today);\nyesterday.setDate(yesterday.getDate() - 1);\n\nreturn {\n  json: {\n    trackingDate: today.toISOString().split('T')[0],\n    yesterdayDate: yesterday.toISOString().split('T')[0],\n    platforms: ['gumroad', 'amazon', 'email'],\n    reportType: 'daily'\n  }\n};"
+      },
+      "id": "init-tracking",
+      "name": "Initialize Tracking",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://api.gumroad.com/v2/sales",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gumroadApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "after",
+              "value": "={{ $json.yesterdayDate }}"
+            },
+            {
+              "name": "before",
+              "value": "={{ $json.trackingDate }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-gumroad-sales",
+      "name": "Fetch Gumroad Sales",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [650, 300],
+      "credentials": {
+        "gumroadApi": {
+          "id": "2",
+          "name": "Gumroad API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst sales = response.sales || [];\n\n// Calculate metrics\nconst totalSales = sales.length;\nconst totalRevenue = sales.reduce((sum, sale) => {\n  return sum + (parseFloat(sale.price) || 0);\n}, 0);\n\nconst productBreakdown = {};\nsales.forEach(sale => {\n  const productName = sale.product_name || 'Unknown';\n  if (!productBreakdown[productName]) {\n    productBreakdown[productName] = {\n      count: 0,\n      revenue: 0\n    };\n  }\n  productBreakdown[productName].count++;\n  productBreakdown[productName].revenue += parseFloat(sale.price) || 0;\n});\n\nreturn {\n  json: {\n    platform: 'gumroad',\n    date: $input.first().json.trackingDate,\n    metrics: {\n      totalSales: totalSales,\n      totalRevenue: totalRevenue.toFixed(2),\n      averageOrderValue: totalSales > 0 ? (totalRevenue / totalSales).toFixed(2) : 0,\n      productBreakdown: productBreakdown\n    },\n    rawData: sales\n  }\n};"
+      },
+      "id": "process-gumroad",
+      "name": "Process Gumroad Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Amazon KDP doesn't have a public API for sales data\n// This provides manual data entry or scraping instructions\n\nreturn {\n  json: {\n    platform: 'amazon-kdp',\n    date: $input.first().json.trackingDate,\n    status: 'manual-entry-required',\n    message: 'Amazon KDP sales data requires manual entry from KDP dashboard',\n    instructions: [\n      '1. Log into https://kdp.amazon.com',\n      '2. Go to Reports > Sales Dashboard',\n      '3. Export yesterday\\'s sales data',\n      '4. Upload to Google Sheets or use API to update tracking'\n    ],\n    metrics: {\n      totalSales: 0,\n      totalRevenue: 0,\n      averageOrderValue: 0,\n      productBreakdown: {}\n    },\n    note: 'Consider using third-party services like BookReport or NovelRank for automated tracking'\n  }\n};"
+      },
+      "id": "process-amazon",
+      "name": "Process Amazon KDP Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Track email-based sales (if using links with tracking parameters)\n// This is a placeholder for integration with email marketing platform\n\nreturn {\n  json: {\n    platform: 'email-direct',\n    date: $input.first().json.trackingDate,\n    status: 'tracking-active',\n    message: 'Email sales tracked via payment processor webhooks',\n    metrics: {\n      totalSales: 0,\n      totalRevenue: 0,\n      clickThroughRate: 0,\n      conversionRate: 0\n    },\n    note: 'Integrate with SendGrid, Mailchimp, or ConvertKit for detailed email metrics'\n  }\n};"
+      },
+      "id": "process-email",
+      "name": "Process Email Sales Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 700]
+    },
+    {
+      "parameters": {},
+      "id": "aggregate-platforms",
+      "name": "Aggregate All Platforms",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const platformData = $input.all();\nconst date = platformData[0].json.date;\n\n// Calculate totals across all platforms\nlet totalSales = 0;\nlet totalRevenue = 0;\n\nconst platformSummary = platformData.map(platform => {\n  const sales = platform.json.metrics?.totalSales || 0;\n  const revenue = parseFloat(platform.json.metrics?.totalRevenue || 0);\n  \n  totalSales += sales;\n  totalRevenue += revenue;\n  \n  return {\n    platform: platform.json.platform,\n    sales: sales,\n    revenue: revenue,\n    status: platform.json.status || 'active'\n  };\n});\n\n// Get top performing products\nconst allProducts = {};\nplatformData.forEach(platform => {\n  const breakdown = platform.json.metrics?.productBreakdown || {};\n  Object.keys(breakdown).forEach(product => {\n    if (!allProducts[product]) {\n      allProducts[product] = {\n        totalSales: 0,\n        totalRevenue: 0,\n        platforms: []\n      };\n    }\n    allProducts[product].totalSales += breakdown[product].count;\n    allProducts[product].totalRevenue += breakdown[product].revenue;\n    allProducts[product].platforms.push(platform.json.platform);\n  });\n});\n\nconst topProducts = Object.entries(allProducts)\n  .sort((a, b) => b[1].totalRevenue - a[1].totalRevenue)\n  .slice(0, 5)\n  .map(([name, data]) => ({\n    name: name,\n    sales: data.totalSales,\n    revenue: data.totalRevenue.toFixed(2),\n    platforms: data.platforms\n  }));\n\nreturn {\n  json: {\n    reportDate: date,\n    reportType: 'daily',\n    summary: {\n      totalSales: totalSales,\n      totalRevenue: totalRevenue.toFixed(2),\n      averageOrderValue: totalSales > 0 ? (totalRevenue / totalSales).toFixed(2) : 0,\n      platformCount: platformData.length\n    },\n    platformBreakdown: platformSummary,\n    topProducts: topProducts,\n    generatedAt: new Date().toISOString()\n  }\n};"
+      },
+      "id": "create-summary",
+      "name": "Create Daily Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "your-google-sheet-id",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sales Data",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.reportDate }}",
+            "Total Sales": "={{ $json.summary.totalSales }}",
+            "Total Revenue": "={{ $json.summary.totalRevenue }}",
+            "Average Order Value": "={{ $json.summary.averageOrderValue }}",
+            "Platforms": "={{ $json.summary.platformCount }}",
+            "Top Product": "={{ $json.topProducts[0]?.name || 'N/A' }}",
+            "Top Product Revenue": "={{ $json.topProducts[0]?.revenue || 0 }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "save-to-sheets",
+      "name": "Save to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1450, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "4",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const summary = $input.first().json;\n\n// Generate HTML email report\nconst emailHtml = `\n<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }\n    .header { background-color: #3498db; color: white; padding: 20px; text-align: center; }\n    .summary { background-color: #f4f4f4; padding: 20px; margin: 20px 0; border-radius: 5px; }\n    .metric { display: inline-block; margin: 10px 20px; text-align: center; }\n    .metric-value { font-size: 2em; font-weight: bold; color: #2c3e50; }\n    .metric-label { color: #666; }\n    .platform { margin: 10px 0; padding: 10px; background: white; border-left: 4px solid #3498db; }\n    .product-list { list-style: none; padding: 0; }\n    .product-item { padding: 10px; margin: 5px 0; background: white; border-radius: 3px; }\n    .footer { text-align: center; color: #999; padding: 20px; font-size: 0.9em; }\n  </style>\n</head>\n<body>\n  <div class=\"header\">\n    <h1>📊 Daily Sales Report</h1>\n    <p>${summary.reportDate}</p>\n  </div>\n  \n  <div class=\"summary\">\n    <div class=\"metric\">\n      <div class=\"metric-value\">${summary.summary.totalSales}</div>\n      <div class=\"metric-label\">Total Sales</div>\n    </div>\n    <div class=\"metric\">\n      <div class=\"metric-value\">$${summary.summary.totalRevenue}</div>\n      <div class=\"metric-label\">Total Revenue</div>\n    </div>\n    <div class=\"metric\">\n      <div class=\"metric-value\">$${summary.summary.averageOrderValue}</div>\n      <div class=\"metric-label\">Avg Order Value</div>\n    </div>\n  </div>\n  \n  <h2>Platform Breakdown</h2>\n  ${summary.platformBreakdown.map(p => `\n    <div class=\"platform\">\n      <strong>${p.platform.toUpperCase()}</strong>: \n      ${p.sales} sales | $${p.revenue} revenue | ${p.status}\n    </div>\n  `).join('')}\n  \n  <h2>🏆 Top Performing Products</h2>\n  <ul class=\"product-list\">\n    ${summary.topProducts.map((p, i) => `\n      <li class=\"product-item\">\n        <strong>#${i + 1} ${p.name}</strong><br>\n        ${p.sales} sales | $${p.revenue} revenue<br>\n        <small>Platforms: ${p.platforms.join(', ')}</small>\n      </li>\n    `).join('')}\n  </ul>\n  \n  <div class=\"footer\">\n    <p>Report generated automatically by N8N E-Book Sales Tracker</p>\n    <p>Generated at: ${new Date(summary.generatedAt).toLocaleString()}</p>\n  </div>\n</body>\n</html>\n`;\n\nreturn {\n  json: {\n    summary: summary,\n    emailHtml: emailHtml,\n    emailSubject: `Daily Sales Report - ${summary.reportDate} - $${summary.summary.totalRevenue} Revenue`\n  }\n};"
+      },
+      "id": "prepare-email-report",
+      "name": "Prepare Email Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 500]
+    },
+    {
+      "parameters": {
+        "fromEmail": "reports@yourdomain.com",
+        "toEmail": "you@yourdomain.com",
+        "subject": "={{ $json.emailSubject }}",
+        "emailType": "html",
+        "message": "={{ $json.emailHtml }}",
+        "options": {}
+      },
+      "id": "send-report-email",
+      "name": "Send Report Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1650, 500],
+      "credentials": {
+        "smtp": {
+          "id": "3",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\n  json: {\n    status: 'completed',\n    message: 'Daily sales tracking completed successfully',\n    reportDate: $input.first().json.summary.reportDate,\n    totalRevenue: $input.first().json.summary.summary.totalRevenue,\n    totalSales: $input.first().json.summary.summary.totalSales,\n    reportsSent: {\n      googleSheets: true,\n      email: true\n    },\n    nextRun: 'Tomorrow at 9 AM',\n    completedAt: new Date().toISOString()\n  }\n};"
+      },
+      "id": "final-status",
+      "name": "Final Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1850, 400]
+    }
+  ],
+  "connections": {
+    "Daily Schedule (9 AM)": {
+      "main": [
+        [
+          {
+            "node": "Initialize Tracking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Tracking": {
+      "main": [
+        [
+          {
+            "node": "Fetch Gumroad Sales",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Process Amazon KDP Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Process Email Sales Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Gumroad Sales": {
+      "main": [
+        [
+          {
+            "node": "Process Gumroad Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Gumroad Data": {
+      "main": [
+        [
+          {
+            "node": "Aggregate All Platforms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Amazon KDP Data": {
+      "main": [
+        [
+          {
+            "node": "Aggregate All Platforms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Email Sales Data": {
+      "main": [
+        [
+          {
+            "node": "Aggregate All Platforms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate All Platforms": {
+      "main": [
+        [
+          {
+            "node": "Create Daily Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Daily Summary": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Email Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Final Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Email Report": {
+      "main": [
+        [
+          {
+            "node": "Send Report Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Report Email": {
+      "main": [
+        [
+          {
+            "node": "Final Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "id": "sales-tracker",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "n8n-ebook-automation"
+  },
+  "tags": [
+    {
+      "id": "ebook",
+      "name": "E-Book"
+    },
+    {
+      "id": "analytics",
+      "name": "Analytics"
+    },
+    {
+      "id": "sales",
+      "name": "Sales Tracking"
+    }
+  ]
+}

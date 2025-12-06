@@ -1,0 +1,435 @@
+{
+  "name": "E-Book Multi-Platform Distributor",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "distribute-ebook",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 400],
+      "webhookId": "distribute-ebook-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate required fields\nconst data = $input.first().json;\n\nconst required = ['title', 'description', 'price', 'files'];\nconst missing = required.filter(field => !data[field]);\n\nif (missing.length > 0) {\n  throw new Error(`Missing required fields: ${missing.join(', ')}`);\n}\n\nreturn {\n  json: {\n    title: data.title,\n    description: data.description,\n    price: parseFloat(data.price) || 9.99,\n    author: data.author || 'Anonymous',\n    keywords: data.keywords || [],\n    categories: data.categories || [],\n    files: data.files,\n    platforms: data.platforms || ['gumroad', 'email'],\n    coverImage: data.coverImage || null,\n    distributionDate: new Date().toISOString()\n  }\n};"
+      },
+      "id": "validate-input",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platforms }}",
+              "operation": "contains",
+              "value2": "gumroad"
+            }
+          ]
+        }
+      },
+      "id": "check-gumroad",
+      "name": "Check Gumroad Platform",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.gumroad.com/v2/products",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gumroadApi",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ $json.description }}"
+            },
+            {
+              "name": "price",
+              "value": "={{ $json.price * 100 }}"
+            },
+            {
+              "name": "currency",
+              "value": "USD"
+            },
+            {
+              "name": "custom_permalink",
+              "value": "={{ $json.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-gumroad-product",
+      "name": "Create Gumroad Product",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [850, 200],
+      "credentials": {
+        "gumroadApi": {
+          "id": "2",
+          "name": "Gumroad API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst productId = response.product?.id || 'unknown';\nconst productUrl = response.product?.short_url || response.product?.url || 'N/A';\n\nreturn {\n  json: {\n    platform: 'gumroad',\n    status: 'published',\n    productId: productId,\n    productUrl: productUrl,\n    title: $input.first().json.title,\n    price: $input.first().json.price,\n    publishedAt: new Date().toISOString()\n  }\n};"
+      },
+      "id": "process-gumroad-response",
+      "name": "Process Gumroad Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platforms }}",
+              "operation": "contains",
+              "value2": "amazon"
+            }
+          ]
+        }
+      },
+      "id": "check-amazon",
+      "name": "Check Amazon KDP Platform",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Amazon KDP doesn't have a public API for direct uploads\n// This node provides instructions for manual upload or API integration\n\nconst title = $input.first().json.title;\nconst description = $input.first().json.description;\nconst keywords = $input.first().json.keywords.join(', ');\nconst categories = $input.first().json.categories.join(', ');\n\nconst instructions = {\n  platform: 'amazon-kdp',\n  status: 'ready-for-manual-upload',\n  message: 'Amazon KDP requires manual upload through their dashboard',\n  steps: [\n    '1. Go to https://kdp.amazon.com',\n    '2. Click \"Create New Title\"',\n    '3. Select \"eBook\"',\n    `4. Enter title: ${title}`,\n    `5. Enter description: ${description}`,\n    `6. Add keywords: ${keywords}`,\n    `7. Select categories: ${categories}`,\n    '8. Upload manuscript file (EPUB or MOBI)',\n    '9. Upload cover image',\n    '10. Set pricing and territories',\n    '11. Publish'\n  ],\n  files: $input.first().json.files,\n  metadata: {\n    title: title,\n    description: description,\n    keywords: keywords,\n    categories: categories,\n    price: $input.first().json.price,\n    author: $input.first().json.author\n  },\n  note: 'Consider using Amazon KDP API or third-party services like PublishDrive for automation'\n};\n\nreturn { json: instructions };"
+      },
+      "id": "prepare-amazon-upload",
+      "name": "Prepare Amazon KDP Upload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platforms }}",
+              "operation": "contains",
+              "value2": "email"
+            }
+          ]
+        }
+      },
+      "id": "check-email",
+      "name": "Check Email Distribution",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 700]
+    },
+    {
+      "parameters": {
+        "fromEmail": "=noreply@yourdomain.com",
+        "toEmail": "={{ $json.emailList || 'subscribers@yourdomain.com' }}",
+        "subject": "=New E-Book Release: {{ $json.title }}",
+        "emailType": "html",
+        "message": "=<html>\n<body style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #333;\">\n  <h1 style=\"color: #2c3e50;\">New E-Book Available!</h1>\n  \n  <h2>{{ $json.title }}</h2>\n  \n  <p><strong>By {{ $json.author }}</strong></p>\n  \n  <div style=\"background-color: #f4f4f4; padding: 20px; border-radius: 5px; margin: 20px 0;\">\n    <p>{{ $json.description }}</p>\n  </div>\n  \n  <h3>What You'll Learn:</h3>\n  <ul>\n    {{ $json.keywords.map(k => `<li>${k}</li>`).join('') }}\n  </ul>\n  \n  <div style=\"margin: 30px 0; text-align: center;\">\n    <a href=\"{{ $json.downloadUrl || '#' }}\" \n       style=\"background-color: #3498db; color: white; padding: 15px 30px; \n              text-decoration: none; border-radius: 5px; font-weight: bold;\">\n      Download Now - ${{ $json.price }}\n    </a>\n  </div>\n  \n  <p style=\"color: #666; font-size: 0.9em; margin-top: 30px;\">\n    Thank you for being a valued subscriber!\n  </p>\n  \n  <hr style=\"border: none; border-top: 1px solid #ddd; margin: 20px 0;\">\n  \n  <p style=\"color: #999; font-size: 0.8em;\">\n    This is an automated message. If you no longer wish to receive updates, \n    you can unsubscribe at any time.\n  </p>\n</body>\n</html>",
+        "options": {
+          "attachments": "={{ $json.files.pdf }}"
+        }
+      },
+      "id": "send-email",
+      "name": "Send Email to Subscribers",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [850, 700],
+      "credentials": {
+        "smtp": {
+          "id": "3",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\n  json: {\n    platform: 'email',\n    status: 'sent',\n    recipients: $input.first().json.emailList || 'subscriber list',\n    title: $input.first().json.title,\n    sentAt: new Date().toISOString()\n  }\n};"
+      },
+      "id": "process-email-response",
+      "name": "Process Email Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 700]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.platforms }}",
+              "operation": "contains",
+              "value2": "social"
+            }
+          ]
+        }
+      },
+      "id": "check-social",
+      "name": "Check Social Media",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 900]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate social media posts for different platforms\nconst title = $input.first().json.title;\nconst description = $input.first().json.description;\nconst price = $input.first().json.price;\nconst productUrl = $input.first().json.productUrl || 'your-product-url';\n\nconst posts = {\n  twitter: `🚀 NEW E-BOOK RELEASE! 🚀\\n\\n📚 ${title}\\n\\n${description.substring(0, 150)}...\\n\\n💰 Only $${price}!\\n\\nGet it now: ${productUrl}\\n\\n#ebook #digitalproduct #newrelease`,\n  \n  facebook: `🎉 Exciting News! 🎉\\n\\nWe're thrilled to announce the release of our latest e-book:\\n\\n📖 \"${title}\"\\n\\n${description}\\n\\nSpecial launch price: $${price}\\n\\n👉 Get your copy here: ${productUrl}\\n\\nDon't miss out on this valuable resource!`,\n  \n  linkedin: `I'm excited to share my latest e-book: \"${title}\"\\n\\n${description}\\n\\nThis comprehensive guide is designed to help you [achieve specific outcome].\\n\\nAvailable now for $${price}.\\n\\nLearn more: ${productUrl}\\n\\n#professionalDevelopment #ebook #learning`,\n  \n  instagram: `📚 NEW E-BOOK ALERT! 📚\\n\\n✨ ${title} ✨\\n\\n${description.substring(0, 100)}...\\n\\n💫 Transform your [niche] journey\\n🎯 Actionable insights\\n📈 Proven strategies\\n\\n💰 Launch price: $${price}\\n\\n🔗 Link in bio!\\n\\n#ebook #digitalproduct #[yourniche] #newrelease #learning`\n};\n\nreturn {\n  json: {\n    platform: 'social-media',\n    status: 'prepared',\n    posts: posts,\n    title: title,\n    productUrl: productUrl,\n    note: 'Use these posts on your social media channels or integrate with social media APIs',\n    preparedAt: new Date().toISOString()\n  }\n};"
+      },
+      "id": "prepare-social-posts",
+      "name": "Prepare Social Media Posts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 900]
+    },
+    {
+      "parameters": {},
+      "id": "aggregate-results",
+      "name": "Aggregate Distribution Results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all();\n\nconst distribution = {\n  title: results[0].json.title,\n  status: 'distributed',\n  distributionDate: new Date().toISOString(),\n  platforms: results.map(r => ({\n    platform: r.json.platform,\n    status: r.json.status,\n    url: r.json.productUrl || r.json.url || null,\n    publishedAt: r.json.publishedAt || r.json.sentAt || r.json.preparedAt\n  })),\n  summary: {\n    total: results.length,\n    successful: results.filter(r => r.json.status === 'published' || r.json.status === 'sent').length,\n    pending: results.filter(r => r.json.status.includes('ready') || r.json.status.includes('prepared')).length\n  },\n  nextSteps: [\n    'Monitor sales and analytics using the sales-tracker workflow',\n    'Engage with customers and gather feedback',\n    'Consider promotional campaigns',\n    'Track performance metrics'\n  ]\n};\n\nreturn { json: distribution };"
+      },
+      "id": "final-summary",
+      "name": "Create Distribution Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "webhook-response",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1650, 400]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Check Gumroad Platform",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Amazon KDP Platform",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Email Distribution",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Social Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Gumroad Platform": {
+      "main": [
+        [
+          {
+            "node": "Create Gumroad Product",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Gumroad Product": {
+      "main": [
+        [
+          {
+            "node": "Process Gumroad Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Gumroad Response": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Distribution Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Amazon KDP Platform": {
+      "main": [
+        [
+          {
+            "node": "Prepare Amazon KDP Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Amazon KDP Upload": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Distribution Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Email Distribution": {
+      "main": [
+        [
+          {
+            "node": "Send Email to Subscribers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email to Subscribers": {
+      "main": [
+        [
+          {
+            "node": "Process Email Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Email Response": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Distribution Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Social Media": {
+      "main": [
+        [
+          {
+            "node": "Prepare Social Media Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Social Media Posts": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Distribution Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Distribution Results": {
+      "main": [
+        [
+          {
+            "node": "Create Distribution Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Distribution Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "id": "ebook-distributor",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "n8n-ebook-automation"
+  },
+  "tags": [
+    {
+      "id": "ebook",
+      "name": "E-Book"
+    },
+    {
+      "id": "distribution",
+      "name": "Distribution"
+    },
+    {
+      "id": "publishing",
+      "name": "Publishing"
+    }
+  ]
+}
