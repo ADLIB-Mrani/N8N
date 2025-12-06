@@ -27,7 +27,34 @@ This guide will walk you through setting up the complete e-book automation syste
 
 ## N8N Installation
 
-### Option 1: Docker (Recommended)
+### Option 1: Hostinger VPS (Recommended for Production) 🌟
+
+**Why Hostinger?**
+- Much cheaper than N8N Cloud ($6-12/month vs $20-50/month)
+- One-click N8N installation
+- Dedicated server in Europe
+- Full control over your data
+- 99.9% uptime guarantee
+
+**Setup Steps:**
+1. Go to [Hostinger VPS](https://hostinger.com) (10% off with special coupons)
+2. Choose VPS plan (KVM 1 recommended for starting: 1 vCPU, 4GB RAM)
+3. Select "N8N" from application templates during setup
+4. Wait 5-10 minutes for automatic installation
+5. Access N8N at: `http://your-server-ip:5678`
+
+**Post-Installation:**
+- Set up domain name (optional but recommended)
+- Configure SSL certificate with Let's Encrypt
+- Set N8N_BASIC_AUTH for security
+- Configure firewall rules
+
+**Cost Comparison:**
+- N8N Cloud Starter: $20/month
+- Hostinger VPS with N8N: $6-12/month
+- **Savings: $100-168/year** 💰
+
+### Option 2: Docker (Recommended for Local Development)
 
 ```bash
 # Pull N8N Docker image
@@ -43,7 +70,7 @@ docker run -it --rm \
 
 Access N8N at: http://localhost:5678
 
-### Option 2: npm (Global Installation)
+### Option 3: npm (Global Installation)
 
 ```bash
 # Install N8N globally

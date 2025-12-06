@@ -126,6 +126,33 @@ cd N8N
 
 See `docs/COMPLETE_EBOOK_BLUEPRINT.md` for full details.
 
+## 🌟 Additional Features & Examples
+
+### Self-Hosting with Hostinger
+**Save $100-168/year** compared to N8N Cloud:
+- One-click N8N installation on VPS
+- Dedicated European servers
+- Full data control and privacy
+- Starting at $6/month (vs $20/month for N8N Cloud)
+
+See `SETUP_GUIDE.md` for Hostinger setup instructions.
+
+### Example Workflows (NEW)
+Beyond e-book automation, explore these practical examples in `workflows/examples/`:
+
+1. **Daily Hacker News AI Summary** - Morning tech news digest with AI filtering
+2. **Local Email Classifier** - Privacy-first email organization using Mistral
+3. **AI Personal Assistant** - Calendar and email management via chat
+
+### Privacy-First AI (NEW)
+Use **local Mistral LLM** for sensitive data:
+- No data sent to external services
+- Free after initial setup
+- GDPR compliant by design
+- Perfect for email, documents, personal data
+
+See `docs/LOCAL_AI_PRIVACY.md` for complete guide on local AI setup.
+
 ## 🎯 Quick Start Guide
 
 ### Create Your First E-Book
