@@ -54,14 +54,30 @@ cd N8N
 
 ## 📁 Workflows Included
 
-### 1. E-Book Content Generator (`ebook-content-generator.json`)
-**Purpose:** Automatically generate e-book content using AI
+### 1. Topic Brainstorm Helper (`topic-brainstorm-helper.json`) ⭐ NEW
+**Purpose:** Help you discover profitable e-book topics based on YOUR personal experience
 
 **Features:**
-- Topic research and outline generation
+- AI-powered topic suggestions from your skills and transformations
+- No "expert" credentials needed - personal experience is enough
+- Marketing strategies for zero-follower launches
+- Profitability ranking
+- Complete action plan
+
+**Perfect for:** Creators starting from scratch with no following
+
+**Trigger:** Manual or Webhook
+
+### 2. E-Book Content Generator (`ebook-content-generator.json`) ✨ UPDATED
+**Purpose:** Generate authentic "How to..." e-books based on personal experience
+
+**Features:**
+- "How to..." framework for all topics
+- Authentic, experience-based voice (not expert lecturing)
+- Personal anecdotes and real examples
+- Common mistakes and quick wins
 - Chapter-by-chapter content creation
 - SEO-optimized titles and descriptions
-- Multiple niche support
 
 **Trigger:** Manual, Webhook, or Scheduled
 
@@ -100,6 +116,15 @@ cd N8N
 - Google Sheets integration
 
 **Trigger:** Scheduled (daily)
+
+### 5. Complete E-Book Blueprint Guide
+**NEW:** Step-by-step guide following proven $1,000+/month strategy
+- Part 1: Picking profitable topics (personal experience method)
+- Part 2: Creating your e-book (with authenticity)
+- Part 3: Setting up to sell (low-tech, simple)
+- Part 4: Marketing authentically (zero followers needed)
+
+See `docs/COMPLETE_EBOOK_BLUEPRINT.md` for full details.
 
 ## 🎯 Quick Start Guide
 

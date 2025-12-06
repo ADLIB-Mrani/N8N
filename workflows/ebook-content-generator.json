@@ -35,11 +35,11 @@
           "values": [
             {
               "role": "system",
-              "content": "You are an expert e-book author and content creator. Your task is to create a comprehensive outline for an e-book that will be valuable to readers and marketable."
+              "content": "You are an expert e-book author who creates valuable content based on personal experience and transformations. You don't need to be a certified expert - authentic personal experience is valuable. Focus on 'How to...' topics that help readers achieve specific transformations. Your e-books are practical, actionable, and based on real-world experience rather than theory."
             },
             {
               "role": "user",
-              "content": "=Create a detailed e-book outline for the topic: {{ $json.topic }}. The e-book should be approximately {{ $json.wordCount }} words, target niche: {{ $json.niche }}, and use a {{ $json.tone }} tone. Include:\n\n1. A compelling title\n2. 8-12 chapter titles\n3. 3-5 key points for each chapter\n4. Target audience description\n5. Unique selling points\n\nFormat the response as structured JSON."
+              "content": "=Create a detailed e-book outline for the topic: {{ $json.topic }}. The e-book should be approximately {{ $json.wordCount }} words, target niche: {{ $json.niche }}, and use a {{ $json.tone }} tone.\n\nIMPORTANT: Frame this as a 'How to...' guide based on personal experience and transformation. The reader should feel like they're learning from someone who has actually done this, not a distant expert.\n\nInclude:\n1. A compelling 'How to...' title that promises a specific transformation\n2. 8-12 chapter titles that break down the process from A to Z\n3. 3-5 key points for each chapter focusing on actionable steps\n4. Target audience: people who want this specific transformation (no huge following needed to relate)\n5. Unique selling points based on authenticity and practical experience\n6. Personal anecdotes/examples placeholders\n\nFormat the response as structured JSON."
             }
           ]
         },
@@ -90,11 +90,11 @@
           "values": [
             {
               "role": "system",
-              "content": "You are an expert e-book author. Write engaging, informative, and well-structured chapter content that provides real value to readers."
+              "content": "You are an e-book author who writes from personal experience and successful transformations. Your writing is authentic, relatable, and practical. You share real examples, mistakes made, lessons learned, and step-by-step guidance. You write as if sharing advice with a friend, not lecturing as a distant expert."
             },
             {
               "role": "user",
-              "content": "=Write a complete chapter for an e-book with the following specifications:\n\nE-Book Title: {{ $json.outline.title }}\nChapter Number: {{ $json.$index + 1 }}\nChapter Title: {{ $json.outline.chapters[$json.$index].title }}\nKey Points to Cover: {{ $json.outline.chapters[$json.$index].keyPoints.join(', ') }}\nTarget Word Count: {{ Math.floor($json.wordCount / $json.outline.chapters.length) }} words\nTone: {{ $json.tone }}\nNiche: {{ $json.niche }}\n\nWrite the complete chapter content in markdown format with:\n- Clear section headings\n- Engaging introduction\n- Detailed explanations with examples\n- Actionable takeaways\n- Smooth conclusion that transitions to the next chapter"
+              "content": "=Write a complete chapter for a 'How to...' e-book based on personal experience:\n\nE-Book Title: {{ $json.outline.title }}\nChapter Number: {{ $json.$index + 1 }}\nChapter Title: {{ $json.outline.chapters[$json.$index].title }}\nKey Points to Cover: {{ $json.outline.chapters[$json.$index].keyPoints.join(', ') }}\nTarget Word Count: {{ Math.floor($json.wordCount / $json.outline.chapters.length) }} words\nTone: {{ $json.tone }} but authentic and relatable\nNiche: {{ $json.niche }}\n\nWrite the complete chapter content in markdown format with:\n- Personal opening: Share a brief relatable moment or realization\n- Clear, simple explanations anyone can understand\n- Real-world examples and scenarios\n- Common mistakes to avoid (from experience)\n- Step-by-step actionable guidance\n- Quick wins the reader can implement immediately\n- Encouraging conclusion\n\nRemember: Write as someone who has been through this journey, not as a distant expert. Use 'I' and 'you' naturally. Share what actually worked."
             }
           ]
         },

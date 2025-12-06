@@ -1,0 +1,231 @@
+{
+  "name": "E-Book Topic Brainstorm Helper",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "brainstorm-topic",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "brainstorm-topic-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract user's experiences and skills\nconst data = $input.first().json;\n\nreturn {\n  json: {\n    userSkills: data.skills || [],\n    lifeExperiences: data.experiences || [],\n    transformations: data.transformations || [],\n    interests: data.interests || [],\n    targetAudience: data.targetAudience || 'people with zero followers',\n    monetizationGoal: data.monthlyGoal || 1000\n  }\n};"
+      },
+      "id": "extract-input",
+      "name": "Extract User Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "model": "gpt-4",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an expert e-book business consultant who helps people identify profitable e-book topics based on their personal experiences, skills, and transformations. You focus on authentic, achievable topics that don't require massive followings to monetize."
+            },
+            {
+              "role": "user",
+              "content": "=Help me brainstorm profitable e-book topics based on my background.\n\nMy Skills: {{ $json.userSkills.join(', ') || 'Not specified' }}\nLife Experiences: {{ $json.lifeExperiences.join(', ') || 'Not specified' }}\nPersonal Transformations: {{ $json.transformations.join(', ') || 'Not specified' }}\nInterests: {{ $json.interests.join(', ') || 'Not specified' }}\nTarget Audience: {{ $json.targetAudience }}\nMonthly Revenue Goal: ${{ $json.monetizationGoal }}\n\nProvide:\n1. 10 profitable e-book topic ideas in \"How to...\" format based on my experience\n2. For each topic, explain:\n   - Why it's profitable (market demand)\n   - What unique angle I can bring\n   - Target audience who would pay for this\n   - Estimated price point ($4.99-$49.99)\n   - Required credibility level (personal experience is enough)\n3. Rank them by profitability and ease of creation\n4. Include specific examples of sub-topics and chapters\n5. Suggest bundles or series opportunities\n\nRemember: I don't need to be an \"expert\" - personal experience and successful transformations are valuable enough. Focus on authentic, specific topics over broad, competitive ones.\n\nFormat as detailed JSON with all fields."
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.8,
+          "maxTokens": 3000
+        }
+      },
+      "id": "generate-topics",
+      "name": "Generate Topic Ideas (AI)",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "1",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json.choices[0].message.content;\nlet topics;\n\ntry {\n  const jsonMatch = response.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    topics = JSON.parse(jsonMatch[0]);\n  } else {\n    // Fallback parsing\n    topics = {\n      topicIdeas: [],\n      rankedByProfitability: [],\n      bundleOpportunities: []\n    };\n  }\n} catch (e) {\n  topics = {\n    topicIdeas: [],\n    rawResponse: response\n  };\n}\n\nreturn {\n  json: {\n    userProfile: {\n      skills: $input.first().json.userSkills,\n      experiences: $input.first().json.lifeExperiences,\n      transformations: $input.first().json.transformations,\n      interests: $input.first().json.interests\n    },\n    topics: topics,\n    monetizationGoal: $input.first().json.monetizationGoal,\n    generatedAt: new Date().toISOString()\n  }\n};"
+      },
+      "id": "parse-topics",
+      "name": "Parse Topic Suggestions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "model": "gpt-4",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a marketing strategist who specializes in helping creators with small or zero followings sell e-books authentically."
+            },
+            {
+              "role": "user",
+              "content": "=For each of these e-book topics, create an authentic marketing strategy that works even with ZERO followers:\n\nTopics: {{ JSON.stringify($json.topics.topicIdeas || []).substring(0, 500) }}\n\nFor the top 3 topics, provide:\n1. Authentic marketing angles (no hype, no false scarcity)\n2. Where to find your first 10 customers\n3. Free content ideas to build trust\n4. Simple launch strategy (no complex funnels)\n5. Pricing strategy for someone with no following\n6. Platforms to start with (Reddit, Facebook groups, etc.)\n7. Sample social media posts that feel genuine\n\nFormat as JSON with detailed strategies."
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 2500
+        }
+      },
+      "id": "generate-marketing",
+      "name": "Generate Marketing Strategies",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "1",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const marketingResponse = $input.first().json.choices[0].message.content;\nlet marketingStrategies;\n\ntry {\n  const jsonMatch = marketingResponse.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    marketingStrategies = JSON.parse(jsonMatch[0]);\n  } else {\n    marketingStrategies = {\n      strategies: [],\n      rawResponse: marketingResponse\n    };\n  }\n} catch (e) {\n  marketingStrategies = {\n    strategies: [],\n    rawResponse: marketingResponse\n  };\n}\n\nconst previousData = $input.all()[0].json;\n\nreturn {\n  json: {\n    userProfile: previousData.userProfile,\n    topicSuggestions: previousData.topics,\n    marketingStrategies: marketingStrategies,\n    monetizationGoal: previousData.monetizationGoal,\n    actionPlan: {\n      step1: 'Pick your top topic from the suggestions',\n      step2: 'Use the ebook-content-generator workflow to create content',\n      step3: 'Use the ebook-formatter workflow to create PDF/EPUB',\n      step4: 'Set up simple sales page on Gumroad (no website needed)',\n      step5: 'Use the marketing strategies provided to find your first customers',\n      step6: 'Track results with sales-tracker workflow'\n    },\n    estimatedTimeToFirstSale: '7-14 days with consistent effort',\n    estimatedMonthlySales: 'Month 1: 5-15 sales, Month 3: 20-50 sales, Month 6: 50-100+ sales',\n    generatedAt: new Date().toISOString()\n  }\n};"
+      },
+      "id": "create-action-plan",
+      "name": "Create Complete Action Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "webhook-response",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract User Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract User Input": {
+      "main": [
+        [
+          {
+            "node": "Generate Topic Ideas (AI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Topic Ideas (AI)": {
+      "main": [
+        [
+          {
+            "node": "Parse Topic Suggestions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Topic Suggestions": {
+      "main": [
+        [
+          {
+            "node": "Generate Marketing Strategies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Marketing Strategies": {
+      "main": [
+        [
+          {
+            "node": "Create Complete Action Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Complete Action Plan": {
+      "main": [
+        [
+          {
+            "node": "Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "id": "topic-brainstorm-helper",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "n8n-ebook-automation"
+  },
+  "tags": [
+    {
+      "id": "ebook",
+      "name": "E-Book"
+    },
+    {
+      "id": "brainstorming",
+      "name": "Topic Discovery"
+    },
+    {
+      "id": "marketing",
+      "name": "Marketing"
+    }
+  ]
+}
