@@ -199,7 +199,7 @@ After your first e-book:
 
 ## 🎥 Video Tutorial
 
-Watch the complete tutorial: https://youtu.be/5CudnzjAf2I?si=4DGtUqqvorcTh3Cr
+Watch the complete tutorial: https://youtu.be/5CudnzjAf2I
 
 ## 🤑 Your 30-Day Goal
 

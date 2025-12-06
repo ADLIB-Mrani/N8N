@@ -459,7 +459,7 @@ This guide provides proven strategies for monetizing e-books using the N8N autom
 
 ## Resources
 
-- [Tutorial Video](https://youtu.be/5CudnzjAf2I?si=4DGtUqqvorcTh3Cr)
+- [Tutorial Video](https://youtu.be/5CudnzjAf2I)
 - [Amazon KDP Community](https://kdp.amazon.com/community)
 - [Gumroad Creator Guide](https://gumroad.com/guides)
 - [r/passive_income](https://reddit.com/r/passive_income)

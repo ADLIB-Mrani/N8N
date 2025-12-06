@@ -113,7 +113,7 @@
         "operation": "append",
         "documentId": {
           "__rl": true,
-          "value": "your-google-sheet-id",
+          "value": "={{ $env.GOOGLE_SHEET_ID || 'your-google-sheet-id' }}",
           "mode": "id"
         },
         "sheetName": {

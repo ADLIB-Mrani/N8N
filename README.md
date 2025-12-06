@@ -180,7 +180,7 @@ Update the formatter workflow to include/exclude formats:
 - [N8N Documentation](https://docs.n8n.io/)
 - [Amazon KDP Guide](https://kdp.amazon.com/help)
 - [E-Book Marketing Strategies](https://blog.reedsy.com/ebook-marketing/)
-- [Tutorial Video](https://youtu.be/5CudnzjAf2I?si=4DGtUqqvorcTh3Cr)
+- [Tutorial Video](https://youtu.be/5CudnzjAf2I)
 
 ## 🤝 Contributing
 

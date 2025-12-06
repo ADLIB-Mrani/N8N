@@ -61,7 +61,7 @@
     },
     {
       "parameters": {
-        "command": "=wkhtmltopdf --enable-local-file-access --page-size A5 --margin-top 20 --margin-bottom 20 --margin-left 15 --margin-right 15 \"{{ $json.baseFilename }}.html\" \"{{ $json.baseFilename }}.pdf\"",
+        "command": "=wkhtmltopdf --enable-local-file-access --page-size A5 --margin-top 20 --margin-bottom 20 --margin-left 15 --margin-right 15 {{ $json.baseFilename.replace(/[^a-zA-Z0-9_-]/g, '_') }}.html {{ $json.baseFilename.replace(/[^a-zA-Z0-9_-]/g, '_') }}.pdf",
         "options": {}
       },
       "id": "generate-pdf",
@@ -95,7 +95,7 @@
     },
     {
       "parameters": {
-        "command": "=if command -v ebook-convert >/dev/null 2>&1; then ebook-convert \"{{ $json.baseFilename }}.html\" \"{{ $json.baseFilename }}.epub\" --authors \"{{ $json.author }}\" --title \"{{ $json.title }}\" --language en; else echo 'Calibre not installed. Install with: sudo apt-get install calibre'; fi",
+        "command": "=if command -v ebook-convert >/dev/null 2>&1; then ebook-convert {{ $json.baseFilename.replace(/[^a-zA-Z0-9_-]/g, '_') }}.html {{ $json.baseFilename.replace(/[^a-zA-Z0-9_-]/g, '_') }}.epub --authors {{ $json.author.replace(/\"/g, '').substring(0, 100) }} --title {{ $json.title.replace(/\"/g, '').substring(0, 200) }} --language en; else echo 'Calibre not installed. Install with: sudo apt-get install calibre'; fi",
         "options": {}
       },
       "id": "generate-epub-calibre",

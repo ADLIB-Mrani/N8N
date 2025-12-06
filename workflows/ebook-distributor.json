@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Validate required fields\nconst data = $input.first().json;\n\nconst required = ['title', 'description', 'price', 'files'];\nconst missing = required.filter(field => !data[field]);\n\nif (missing.length > 0) {\n  throw new Error(`Missing required fields: ${missing.join(', ')}`);\n}\n\nreturn {\n  json: {\n    title: data.title,\n    description: data.description,\n    price: parseFloat(data.price) || 9.99,\n    author: data.author || 'Anonymous',\n    keywords: data.keywords || [],\n    categories: data.categories || [],\n    files: data.files,\n    platforms: data.platforms || ['gumroad', 'email'],\n    coverImage: data.coverImage || null,\n    distributionDate: new Date().toISOString()\n  }\n};"
+        "jsCode": "// Validate required fields\nconst data = $input.first().json;\n\nconst required = ['title', 'description', 'price', 'files'];\nconst missing = required.filter(field => !data[field]);\n\nif (missing.length > 0) {\n  throw new Error(`Missing required fields: ${missing.join(', ')}`);\n}\n\n// Sanitize inputs to prevent XSS\nfunction escapeHtml(text) {\n  if (!text) return '';\n  return String(text)\n    .replace(/&/g, '&amp;')\n    .replace(/</g, '&lt;')\n    .replace(/>/g, '&gt;')\n    .replace(/\"/g, '&quot;')\n    .replace(/'/g, '&#039;');\n}\n\nreturn {\n  json: {\n    title: escapeHtml(data.title),\n    description: escapeHtml(data.description),\n    price: parseFloat(data.price) || 9.99,\n    author: escapeHtml(data.author || 'Anonymous'),\n    keywords: (data.keywords || []).map(k => escapeHtml(k)),\n    categories: (data.categories || []).map(c => escapeHtml(c)),\n    files: data.files,\n    platforms: data.platforms || ['gumroad', 'email'],\n    coverImage: data.coverImage || null,\n    distributionDate: new Date().toISOString()\n  }\n};"
       },
       "id": "validate-input",
       "name": "Validate Input",
@@ -69,7 +69,7 @@
             },
             {
               "name": "custom_permalink",
-              "value": "={{ $json.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') }}"
+              "value": "={{ ($json.title || 'ebook').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'ebook-' + Date.now() }}"
             }
           ]
         },
