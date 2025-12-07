@@ -1,0 +1,273 @@
+{
+  "name": "E-Book Formatter & Converter",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "format-ebook",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "format-ebook-webhook"
+    },
+    {
+      "parameters": {
+        "filePath": "={{ $json.markdownFile }}",
+        "options": {}
+      },
+      "id": "read-markdown",
+      "name": "Read Markdown File",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const binaryData = $input.first().binary.data;\nconst content = Buffer.from(binaryData.data, 'base64').toString('utf8');\n\n// Extract metadata from content\nconst titleMatch = content.match(/^#\\s+(.+)$/m);\nconst title = titleMatch ? titleMatch[1] : 'Untitled E-Book';\n\n// Extract author if present\nconst authorMatch = content.match(/\\*\\*Author:\\*\\*\\s+(.+)$/m);\nconst author = authorMatch ? authorMatch[1] : $json.author || 'Anonymous';\n\nreturn {\n  json: {\n    content: content,\n    title: title,\n    author: author,\n    filename: $json.markdownFile,\n    baseFilename: $json.markdownFile.replace(/\\.md$/, ''),\n    coverImage: $json.coverImage || null,\n    formats: $json.formats || ['pdf', 'epub'],\n    price: $json.price || 9.99,\n    description: $json.description || '',\n    keywords: $json.keywords || []\n  }\n};"
+      },
+      "id": "extract-metadata",
+      "name": "Extract Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const markdown = $input.first().json.content;\nconst title = $input.first().json.title;\nconst author = $input.first().json.author;\n\n// Convert markdown to HTML\nfunction markdownToHtml(md) {\n  let html = md;\n  \n  // Headers\n  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');\n  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');\n  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');\n  \n  // Bold and italic\n  html = html.replace(/\\*\\*\\*(.+?)\\*\\*\\*/g, '<strong><em>$1</em></strong>');\n  html = html.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');\n  html = html.replace(/\\*(.+?)\\*/g, '<em>$1</em>');\n  \n  // Code blocks\n  html = html.replace(/```([\\s\\S]+?)```/g, '<pre><code>$1</code></pre>');\n  html = html.replace(/`(.+?)`/g, '<code>$1</code>');\n  \n  // Links\n  html = html.replace(/\\[(.+?)\\]\\((.+?)\\)/g, '<a href=\"$2\">$1</a>');\n  \n  // Lists\n  html = html.replace(/^\\* (.+)$/gm, '<li>$1</li>');\n  html = html.replace(/^- (.+)$/gm, '<li>$1</li>');\n  html = html.replace(/(<li>.*<\\/li>\\n)+/g, '<ul>$&</ul>');\n  \n  // Paragraphs\n  html = html.replace(/^(?!<[hul]|<pre)(.+)$/gm, '<p>$1</p>');\n  \n  // Line breaks\n  html = html.replace(/---/g, '<hr>');\n  \n  return html;\n}\n\nconst htmlContent = markdownToHtml(markdown);\n\n// Create complete HTML document\nconst fullHtml = `<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>${title}</title>\n  <meta name=\"author\" content=\"${author}\">\n  <style>\n    body {\n      font-family: 'Georgia', serif;\n      line-height: 1.6;\n      max-width: 800px;\n      margin: 0 auto;\n      padding: 20px;\n      color: #333;\n    }\n    h1 {\n      font-size: 2.5em;\n      margin-top: 0.5em;\n      margin-bottom: 0.5em;\n      color: #2c3e50;\n      page-break-before: always;\n    }\n    h2 {\n      font-size: 2em;\n      margin-top: 1em;\n      margin-bottom: 0.5em;\n      color: #34495e;\n    }\n    h3 {\n      font-size: 1.5em;\n      margin-top: 1em;\n      margin-bottom: 0.5em;\n      color: #555;\n    }\n    p {\n      margin-bottom: 1em;\n      text-align: justify;\n    }\n    code {\n      background-color: #f4f4f4;\n      padding: 2px 5px;\n      border-radius: 3px;\n      font-family: 'Courier New', monospace;\n    }\n    pre {\n      background-color: #f4f4f4;\n      padding: 15px;\n      border-radius: 5px;\n      overflow-x: auto;\n    }\n    ul, ol {\n      margin-bottom: 1em;\n    }\n    li {\n      margin-bottom: 0.5em;\n    }\n    hr {\n      border: none;\n      border-top: 2px solid #ddd;\n      margin: 2em 0;\n    }\n    a {\n      color: #3498db;\n      text-decoration: none;\n    }\n    a:hover {\n      text-decoration: underline;\n    }\n    @media print {\n      body {\n        max-width: none;\n      }\n      h1 {\n        page-break-before: always;\n      }\n    }\n  </style>\n</head>\n<body>\n  ${htmlContent}\n</body>\n</html>`;\n\nreturn {\n  json: {\n    html: fullHtml,\n    title: $input.first().json.title,\n    author: $input.first().json.author,\n    baseFilename: $input.first().json.baseFilename,\n    coverImage: $input.first().json.coverImage,\n    formats: $input.first().json.formats,\n    price: $input.first().json.price,\n    description: $input.first().json.description,\n    keywords: $input.first().json.keywords\n  }\n};"
+      },
+      "id": "convert-to-html",
+      "name": "Convert Markdown to HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "fileContent": "={{ $json.html }}",
+        "fileName": "={{ $json.baseFilename }}.html",
+        "options": {}
+      },
+      "id": "save-html",
+      "name": "Save HTML",
+      "type": "n8n-nodes-base.writeFile",
+      "typeVersion": 1,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "command": "=wkhtmltopdf --enable-local-file-access --page-size A5 --margin-top 20 --margin-bottom 20 --margin-left 15 --margin-right 15 {{ $json.baseFilename.replace(/[^a-zA-Z0-9_-]/g, '_') }}.html {{ $json.baseFilename.replace(/[^a-zA-Z0-9_-]/g, '_') }}.pdf",
+        "options": {}
+      },
+      "id": "generate-pdf",
+      "name": "Generate PDF (wkhtmltopdf)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate EPUB structure\nconst title = $input.first().json.title;\nconst author = $input.first().json.author;\nconst html = $input.first().json.html;\nconst baseFilename = $input.first().json.baseFilename;\n\n// EPUB is a ZIP file with specific structure\n// For simplicity, we'll create the content.opf file\nconst contentOpf = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<package xmlns=\"http://www.idpf.org/2007/opf\" unique-identifier=\"bookid\" version=\"2.0\">\n  <metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:opf=\"http://www.idpf.org/2007/opf\">\n    <dc:title>${title}</dc:title>\n    <dc:creator opf:role=\"aut\">${author}</dc:creator>\n    <dc:language>en</dc:language>\n    <dc:identifier id=\"bookid\">urn:uuid:${Date.now()}</dc:identifier>\n  </metadata>\n  <manifest>\n    <item id=\"content\" href=\"content.html\" media-type=\"application/xhtml+xml\"/>\n    <item id=\"ncx\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\"/>\n  </manifest>\n  <spine toc=\"ncx\">\n    <itemref idref=\"content\"/>\n  </spine>\n</package>`;\n\n// Note: Full EPUB generation requires additional tools like Calibre\n// This provides the basic structure\nreturn {\n  json: {\n    contentOpf: contentOpf,\n    html: html,\n    title: title,\n    author: author,\n    baseFilename: baseFilename,\n    coverImage: $input.first().json.coverImage,\n    formats: $input.first().json.formats,\n    price: $input.first().json.price,\n    description: $input.first().json.description,\n    keywords: $input.first().json.keywords,\n    message: 'For full EPUB conversion, use Calibre CLI: ebook-convert input.html output.epub'\n  }\n};"
+      },
+      "id": "prepare-epub",
+      "name": "Prepare EPUB Structure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "fileContent": "={{ $json.contentOpf }}",
+        "fileName": "={{ $json.baseFilename }}_content.opf",
+        "options": {}
+      },
+      "id": "save-epub-manifest",
+      "name": "Save EPUB Manifest",
+      "type": "n8n-nodes-base.writeFile",
+      "typeVersion": 1,
+      "position": [1450, 400]
+    },
+    {
+      "parameters": {
+        "command": "=if command -v ebook-convert >/dev/null 2>&1; then ebook-convert {{ $json.baseFilename.replace(/[^a-zA-Z0-9_-]/g, '_') }}.html {{ $json.baseFilename.replace(/[^a-zA-Z0-9_-]/g, '_') }}.epub --authors {{ $json.author.replace(/\"/g, '').substring(0, 100) }} --title {{ $json.title.replace(/\"/g, '').substring(0, 200) }} --language en; else echo 'Calibre not installed. Install with: sudo apt-get install calibre'; fi",
+        "options": {}
+      },
+      "id": "generate-epub-calibre",
+      "name": "Generate EPUB (Calibre)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1650, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const baseFilename = $input.first().json.baseFilename;\nconst title = $input.first().json.title;\nconst author = $input.first().json.author;\n\nreturn {\n  json: {\n    title: title,\n    author: author,\n    files: {\n      markdown: `${baseFilename}.md`,\n      html: `${baseFilename}.html`,\n      pdf: `${baseFilename}.pdf`,\n      epub: `${baseFilename}.epub`,\n      epubManifest: `${baseFilename}_content.opf`\n    },\n    price: $input.first().json.price,\n    description: $input.first().json.description,\n    keywords: $input.first().json.keywords,\n    coverImage: $input.first().json.coverImage,\n    status: 'formatted',\n    message: 'E-book formatted successfully in multiple formats',\n    nextStep: 'Use ebook-distributor workflow to publish',\n    formattedAt: new Date().toISOString()\n  }\n};"
+      },
+      "id": "final-output",
+      "name": "Prepare Final Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1850, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "webhook-response",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2050, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Markdown File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Markdown File": {
+      "main": [
+        [
+          {
+            "node": "Extract Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Metadata": {
+      "main": [
+        [
+          {
+            "node": "Convert Markdown to HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert Markdown to HTML": {
+      "main": [
+        [
+          {
+            "node": "Save HTML",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare EPUB Structure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save HTML": {
+      "main": [
+        [
+          {
+            "node": "Generate PDF (wkhtmltopdf)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate PDF (wkhtmltopdf)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Final Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare EPUB Structure": {
+      "main": [
+        [
+          {
+            "node": "Save EPUB Manifest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save EPUB Manifest": {
+      "main": [
+        [
+          {
+            "node": "Generate EPUB (Calibre)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate EPUB (Calibre)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Final Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Final Output": {
+      "main": [
+        [
+          {
+            "node": "Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "id": "ebook-formatter",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "n8n-ebook-automation"
+  },
+  "tags": [
+    {
+      "id": "ebook",
+      "name": "E-Book"
+    },
+    {
+      "id": "formatting",
+      "name": "Formatting"
+    },
+    {
+      "id": "conversion",
+      "name": "Conversion"
+    }
+  ]
+}

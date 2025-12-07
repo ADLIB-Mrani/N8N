@@ -1,0 +1,296 @@
+{
+  "name": "Daily Hacker News AI Summary",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Daily at 8 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://hacker-news.firebaseio.com/v0/topstories.json",
+        "options": {}
+      },
+      "id": "fetch-top-stories",
+      "name": "Fetch Top Stories IDs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get top 30 story IDs\nconst storyIds = $input.first().json.slice(0, 30);\n\nreturn storyIds.map(id => ({\n  json: { storyId: id }\n}));"
+      },
+      "id": "extract-top-30",
+      "name": "Extract Top 30 IDs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://hacker-news.firebaseio.com/v0/item/{{ $json.storyId }}.json",
+        "options": {}
+      },
+      "id": "fetch-story-details",
+      "name": "Fetch Story Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const story = $input.first().json;\n\n// Filter: score > 100 and has URL\nif (story.score > 100 && story.url) {\n  return {\n    json: {\n      title: story.title,\n      url: story.url,\n      score: story.score,\n      by: story.by,\n      time: story.time,\n      descendants: story.descendants || 0\n    }\n  };\n}\n\n// Return empty to filter out\nreturn [];"
+      },
+      "id": "filter-stories",
+      "name": "Filter High-Score Stories",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "fetch-article-content",
+      "name": "Fetch Article Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "model": "gpt-4",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a tech news analyst. Summarize articles in 2-3 sentences highlighting key insights."
+            },
+            {
+              "role": "user",
+              "content": "=Summarize this article:\n\nTitle: {{ $json.title }}\nURL: {{ $json.url }}\n\nProvide a concise summary focusing on:\n1. Main topic/innovation\n2. Why it matters\n3. Key takeaway\n\nKeep it under 100 words."
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.5,
+          "maxTokens": 150
+        }
+      },
+      "id": "ai-summarize",
+      "name": "AI Summarize Article",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1450, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "1",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const summary = $input.first().json.choices[0].message.content;\nconst story = $input.first().json;\n\nreturn {\n  json: {\n    title: story.title,\n    url: story.url,\n    score: story.score,\n    author: story.by,\n    comments: story.descendants,\n    summary: summary\n  }\n};"
+      },
+      "id": "format-summary",
+      "name": "Format Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {},
+      "id": "aggregate-summaries",
+      "name": "Aggregate All Summaries",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1850, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const stories = $input.all();\n\n// Sort by score\nconst sortedStories = stories.sort((a, b) => b.json.score - a.json.score);\n\n// Create HTML email\nlet emailHtml = `\n<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }\n    .header { background: #ff6600; color: white; padding: 20px; text-align: center; border-radius: 5px; }\n    .story { background: #f4f4f4; padding: 15px; margin: 15px 0; border-radius: 5px; border-left: 4px solid #ff6600; }\n    .story h3 { margin-top: 0; color: #333; }\n    .story a { color: #ff6600; text-decoration: none; font-weight: bold; }\n    .story a:hover { text-decoration: underline; }\n    .meta { color: #666; font-size: 0.9em; margin-top: 10px; }\n    .summary { margin-top: 10px; }\n    .footer { text-align: center; color: #999; margin-top: 30px; font-size: 0.9em; }\n  </style>\n</head>\n<body>\n  <div class=\"header\">\n    <h1>🚀 Your Daily Hacker News AI Summary</h1>\n    <p>${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>\n  </div>\n  \n  <p>Here are today's top ${sortedStories.length} tech stories, filtered and summarized by AI:</p>\n`;\n\nsortedStories.forEach((story, index) => {\n  emailHtml += `\n  <div class=\"story\">\n    <h3>${index + 1}. ${story.json.title}</h3>\n    <div class=\"summary\">${story.json.summary}</div>\n    <div class=\"meta\">\n      👤 ${story.json.author} | \n      ⬆️ ${story.json.score} points | \n      💬 ${story.json.comments} comments |\n      <a href=\"${story.json.url}\" target=\"_blank\">Read Full Article →</a>\n    </div>\n  </div>\n  `;\n});\n\nemailHtml += `\n  <div class=\"footer\">\n    <p>Automated by N8N + OpenAI | <a href=\"https://news.ycombinator.com\">Visit Hacker News</a></p>\n  </div>\n</body>\n</html>\n`;\n\nconst today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });\n\nreturn {\n  json: {\n    subject: `📰 Hacker News Digest - ${today} (${sortedStories.length} stories)`,\n    html: emailHtml,\n    storyCount: sortedStories.length\n  }\n};"
+      },
+      "id": "create-email",
+      "name": "Create Email Digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2050, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@yourdomain.com",
+        "toEmail": "your-email@example.com",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Email Digest",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [2250, 300],
+      "credentials": {
+        "smtp": {
+          "id": "3",
+          "name": "SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily at 8 AM": {
+      "main": [
+        [
+          {
+            "node": "Fetch Top Stories IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Top Stories IDs": {
+      "main": [
+        [
+          {
+            "node": "Extract Top 30 IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Top 30 IDs": {
+      "main": [
+        [
+          {
+            "node": "Fetch Story Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Story Details": {
+      "main": [
+        [
+          {
+            "node": "Filter High-Score Stories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter High-Score Stories": {
+      "main": [
+        [
+          {
+            "node": "Fetch Article Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Article Content": {
+      "main": [
+        [
+          {
+            "node": "AI Summarize Article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Summarize Article": {
+      "main": [
+        [
+          {
+            "node": "Format Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Summary": {
+      "main": [
+        [
+          {
+            "node": "Aggregate All Summaries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate All Summaries": {
+      "main": [
+        [
+          {
+            "node": "Create Email Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Email Digest": {
+      "main": [
+        [
+          {
+            "node": "Send Email Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "id": "hackernews-ai-summary",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "n8n-automation-examples"
+  },
+  "tags": [
+    {
+      "id": "news",
+      "name": "News"
+    },
+    {
+      "id": "ai",
+      "name": "AI Summary"
+    },
+    {
+      "id": "email",
+      "name": "Email Automation"
+    }
+  ]
+}
